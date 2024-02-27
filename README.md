@@ -50,6 +50,10 @@ Set-ExecutionPolicy Restricted
 
 If you have any feedback or suggestions, feel free to open an issue on the [GitHub Yim-AutoUpdater Issues](https://github.com/Harmless05/Yim-AutoUpdater/issues) page.
 
+## Download the latest version
+
+You can download the latest version of Yim-AutoUpdater from the [Releases](https://github.com/Harmless05/Yim-AutoUpdater/releases/latest) page.
+
 # Future ideas
 
 - [ ] Check for updates on a schedule
