@@ -4,8 +4,6 @@ This is a simple PowerShell script that will allow you to update your [YimMenu](
 
 ## How to use it
 
-
-
 All you have to do is to run the `Yim-AutoUpdater.ps1` by **Right Clicking** on it and selecting `"Run with PowerShell"` or open a PowerShell window and run the script.
 
 The script will check for the latest version of YimMenu and download it if it's not already installed.
