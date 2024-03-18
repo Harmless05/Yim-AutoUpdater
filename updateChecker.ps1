@@ -151,7 +151,7 @@ function RunUpdateChecker {
                 $result = $wsh.Popup("Failed to delete the old version", 0, "Error", 16)
                 break
             }
-            Invoke-WebRequest -Uri $DLL_URL -OutFile "YimMenu.dll"
+            Invoke-WebRequest -Uri $DLL_URL -OutFile $fullPath
             setConfigValue -propertyName "LastTaskCheck" -newValue (Get-Date)
         }# elseif ($result -eq 7) {}
     } #else {
