@@ -9,25 +9,34 @@ function Set-ConsoleColor ($Background, $Foreground) {
 Set-ConsoleColor -Background "Black" -Foreground "White" # Feel free to change the colors
 
 # Don't change these :)
-$scriptVersion = "1.2.0"
-$configVersion = "2.0"
+$scriptVersion = "1.3.0"
+$configVersion = "3.0"
 $currentScriptPath = $MyInvocation.MyCommand.Path
 $scriptFolderPath = "C:\Users\$env:USERNAME\Documents\Yim-AutoUpdater"
 $bgCheckerPath = Join-Path -Path $scriptFolderPath -ChildPath "updateChecker.ps1"
 $configFile = Join-Path -Path $scriptFolderPath -ChildPath "config.json"
+$yimMenuPath = "C:\Users\$env:USERNAME\AppData\Roaming\YimMenu"
 $defaultDownloadLocation = "C:\Users\$env:USERNAME\Desktop"
 $defaultConfig = @{
     "ConfigVersion" = $configVersion
     "DownloadLocation" = $defaultDownloadLocation
-    "ScheduledTask" = $false
-    "ScheduledTaskName" = "YimMenu AutoUpdater"
-    "LastTaskCheck" = "EmptyDate"
     "CheckAtStartup" = $false
     "ExitAnywhere" = $false
     "RestartAnywhere" = $true
-    "SoundEffects" = $true
     "TitleArt" = $true
+    "SoundEffects" = $true
     "DebugInfo" = $false
+    "CheckLuaAtStartup" = $false
+    "ScanLuaAtStartup" = $false
+    "SkipDisabledLuaUpdates" = $false
+    "InjectionDelay" = 7000
+    "AutoLaunchGTAV" = $false
+    "Platform" = "4"
+    "GitHubToken" = ""
+    "CloseAfterInjection" = $true
+    "ScheduledTask" = $false
+    "ScheduledTaskName" = "YimMenu AutoUpdater"
+    "LastTaskCheck" = "EmptyDate"
 }
 
 <#
@@ -327,6 +336,7 @@ function YimAutoUpdater {
                     try {
                         Remove-Item $fullPath -ErrorAction Stop
                     } catch {
+                        PlayExclamation
                         Write-Host "Failed to delete the old version" -ForegroundColor Red
                         break
                     }
@@ -360,6 +370,22 @@ function YimAutoUpdater {
         Write-Host "(1) Check for YimMenu updates"
         Write-Host "(2) Check and download YimMenu updates"
         Write-Host "(3) Script settings"
+        Write-Host "(4) YimMenu Lua"
+        Write-Host "(5) Inject YimMenu " -NoNewline
+        Write-Host "[ALPHA] - Use at your own risk!" -ForegroundColor Red
+        if (GetConfigValue("AutoLaunchGTAV")) {
+            Write-Host "    Platform: " -ForegroundColor DarkCyan -NoNewline 
+            $platform = GetConfigValue("Platform")
+            if ($platform -eq "4") {
+                Write-Host "None" -ForegroundColor DarkCyan
+            } elseif ($platform -eq "1") {
+                Write-Host "Steam" -ForegroundColor DarkCyan
+            } elseif ($platform -eq "2") {
+                Write-Host "Epic Games" -ForegroundColor DarkCyan
+            } elseif ($platform -eq "3") {
+                Write-Host "Rockstar Games Launcher" -ForegroundColor DarkCyan
+            }
+        }
         Write-Host "(h) Help"
         Write-Host "(0) Exit" -ForegroundColor Red
     }
@@ -391,6 +417,7 @@ function YimAutoUpdater {
                 try {
                     Remove-Item $fullPath -ErrorAction Stop
                 } catch {
+                    PlayExclamation
                     Write-Host "Failed to delete the old version" -ForegroundColor Red
                     break
                 }
@@ -416,29 +443,22 @@ function YimAutoUpdater {
             Write-Host "Settings" -NoNewline -ForegroundColor DarkRed
             Write-Host " ~`n"
             Write-Host "Please select a task to run:" -ForegroundColor Cyan
+            Write-Host "`n = YimMenu Settings =" -ForegroundColor Yellow # YimMenu category
             Write-Host "(1)  Get YimMenu Info"
-            Write-Host "(2)  Create a Scheduled Task" -NoNewline
-            # Check if the scheduled task is enabled
-            $taskStatus = (GetConfigValue "ScheduledTask")
-            if ($taskStatus) {
-                Write-Host " (Enabled)" -ForegroundColor DarkGreen
-            } else {
-                Write-Host " (Disabled)" -ForegroundColor DarkRed
-            }
-            Write-Host "(3)  Remove the Scheduled Task"
-            Write-Host "(4)  Open script folder"
-            Write-Host "(5)  Display config"
-            Write-Host "(6)  Change YimMenu download location"
+            Write-Host "(2)  Open YimMenu folder"
+            Write-Host "(3)  Change YimMenu download location"
             # Check for updates at startup
-            Write-Host "(7)  Check for updates at startup" -NoNewline
+            Write-Host "(4)  Check for updates at startup" -NoNewline
             $checkAtStartup = (GetConfigValue "CheckAtStartup")
             if ($checkAtStartup) {
                 Write-Host " (Enabled)" -ForegroundColor DarkGreen
             } else {
                 Write-Host " (Disabled)" -ForegroundColor DarkRed
             }
+
+            Write-Host "`n = Script Toggles =" -ForegroundColor Yellow # Script Toggles category
             # Enable exit keybind "E/Q" anywhere
-            Write-Host "(8)  Exit keybind (e/q) anywhere" -NoNewline
+            Write-Host "(5)  Exit keybind (e/q) anywhere" -NoNewline
             $exitAnywhere = (GetConfigValue "ExitAnywhere")
             if ($exitAnywhere) {
                 Write-Host " (Enabled)" -ForegroundColor DarkGreen
@@ -446,41 +466,120 @@ function YimAutoUpdater {
                 Write-Host " (Disabled)" -ForegroundColor DarkRed
             }
             # Enable restart keybind "R" anywhere
-            Write-Host "(9)  Restart keybind (r) anywhere" -NoNewline
+            Write-Host "(6)  Restart keybind (r) anywhere" -NoNewline
             $restartAnywhere = (GetConfigValue "RestartAnywhere")
             if ($restartAnywhere) {
                 Write-Host " (Enabled)" -ForegroundColor DarkGreen
             } else {
                 Write-Host " (Disabled)" -ForegroundColor DarkRed
             }
-            # Sound effects
-            Write-Host "(10) Sound effects" -NoNewline
-            $soundEffects = (GetConfigValue "SoundEffects")
-            if ($soundEffects) {
-                Write-Host " (Enabled)" -ForegroundColor DarkGreen
-            } else {
-                Write-Host " (Disabled)" -ForegroundColor DarkRed
-            }
             # Big Title Art
-            Write-Host "(11) Big Title Art" -NoNewline
+            Write-Host "(7)  Big Title Art" -NoNewline
             $titleArt = (GetConfigValue "TitleArt")
             if ($titleArt) {
                 Write-Host " (Enabled)" -ForegroundColor DarkGreen
             } else {
                 Write-Host " (Disabled)" -ForegroundColor DarkRed
             }
+            # Sound effects
+            Write-Host "(8)  Sound effects" -NoNewline
+            $soundEffects = (GetConfigValue "SoundEffects")
+            if ($soundEffects) {
+                Write-Host " (Enabled)" -ForegroundColor DarkGreen
+            } else {
+                Write-Host " (Disabled)" -ForegroundColor DarkRed
+            }
             # Debug info
-            Write-Host "(12) Debug Info" -NoNewline
+            Write-Host "(9)  Debug Info" -NoNewline
             $debugInfo = (GetConfigValue "DebugInfo")
             if ($debugInfo) {
                 Write-Host " (Enabled)" -ForegroundColor DarkGreen
             } else {
                 Write-Host " (Disabled)" -ForegroundColor DarkRed
             }
-            Write-Host "(13) Reset config" -ForegroundColor DarkRed
-            Write-Host "(14) Run As Administrator"
+
+            Write-Host "`n = YimMenu Lua Settings =" -ForegroundColor Yellow # YimMenu Lua category
+            Write-Host "(10) Check for Lua updates at startup" -NoNewline
+            $checkLuaAtStartup = (GetConfigValue "CheckLuaAtStartup")
+            if ($checkLuaAtStartup) {
+                Write-Host " (Enabled)" -ForegroundColor DarkGreen
+            } else {
+                Write-Host " (Disabled)" -ForegroundColor DarkRed
+            }
+            Write-Host "(11) Scan for Lua scripts at startup" -NoNewline
+            $scanLuaAtStartup = (GetConfigValue "ScanLuaAtStartup")
+            if ($scanLuaAtStartup) {
+                Write-Host " (Enabled)" -ForegroundColor DarkGreen
+            } else {
+                Write-Host " (Disabled)" -ForegroundColor DarkRed
+            }
+            Write-Host "(12) Skip updates for YimMenu disabled luas" -NoNewline
+            $skipDisabledLuaUpdates = (GetConfigValue "SkipDisabledLuaUpdates")
+            if ($skipDisabledLuaUpdates) {
+                Write-Host " (Enabled)" -ForegroundColor DarkGreen
+            } else {
+                Write-Host " (Disabled)" -ForegroundColor DarkRed
+            }
+
+            Write-Host "`n = DLL Injection Settings =" -ForegroundColor Yellow # DLL Injection category
+            Write-Host "(13) Injection delay: " -NoNewline
+            $injectionDelay = (GetConfigValue "InjectionDelay")
+            Write-Host "$injectionDelay ms" -ForegroundColor Cyan
+            Write-Host "(14) Auto launch GTAV" -NoNewline
+            $autoLaunchGTAV = (GetConfigValue "AutoLaunchGTAV")
+            if ($autoLaunchGTAV) {
+                Write-Host " (Enabled)" -ForegroundColor DarkGreen
+            } else {
+                Write-Host " (Disabled)" -ForegroundColor DarkRed
+            }
+            Write-Host "(15) Platform: " -NoNewline
+            $platform = (GetConfigValue "Platform")
+            if ($platform -eq "4") {
+                Write-Host "None" -ForegroundColor Cyan
+            } elseif ($platform -eq "1") {
+                Write-Host "Steam" -ForegroundColor Cyan
+            } elseif ($platform -eq "2") {
+                Write-Host "Epic Games" -ForegroundColor Cyan
+            } elseif ($platform -eq "3") {
+                Write-Host "Rockstar Games Launcher" -ForegroundColor Cyan
+            }
+            Write-Host "(16) Close after injection" -NoNewline
+            $closeAfterInjection = (GetConfigValue "CloseAfterInjection")
+            if ($closeAfterInjection) {
+                Write-Host " (Enabled)" -ForegroundColor DarkGreen
+            } else {
+                Write-Host " (Disabled)" -ForegroundColor DarkRed
+            }
+
+            Write-Host "`n = GitHub API Settings =" -ForegroundColor Yellow # GitHub API category
+            Write-Host "(17) Set GitHub token" -NoNewline
+            $githubToken = (GetConfigValue "GitHubToken")
+            # Check if value is empty
+            if ($null -eq $githubToken -or $githubToken -eq "") {
+                Write-Host " (Not set)" -ForegroundColor DarkRed
+            } else {
+                Write-Host " (Set)" -ForegroundColor DarkGreen
+            }
+            Write-Host "(18) Remove GitHub token"
+
+            Write-Host "`n = Scheduled Task Settings =" -ForegroundColor Yellow # Scheduled Task category
+            Write-Host "(19) Create a Scheduled Task" -NoNewline
+            # Check if the scheduled task is enabled
+            $taskStatus = (GetConfigValue "ScheduledTask")
+            if ($taskStatus) {
+                Write-Host " (Enabled)" -ForegroundColor DarkGreen
+            } else {
+                Write-Host " (Disabled)" -ForegroundColor DarkRed
+            }
+            Write-Host "(20) Remove the Scheduled Task"
+
+            Write-Host "`n = Misc Settings =" -ForegroundColor Yellow # Misc category
+            Write-Host "(21) Open script folder"
+            Write-Host "(22) Display config"
+            Write-Host "(23) Reset config" -ForegroundColor DarkRed
+            Write-Host "(24) Run As Administrator"
             Write-Host "(r)  Reload the script"
-            Write-Host "(0)  Go Back" -ForegroundColor Magenta
+            Write-Host "`n(0)  Go Back" -ForegroundColor Magenta
         }
 
         # Gets info about the latest version of YimMenu
@@ -506,6 +605,177 @@ function YimAutoUpdater {
                 Write-Host $($hashes.LocalHash) -ForegroundColor Green
             }
         }
+
+        # Opens the YimMenu folder
+        function OpenYimMenuFolder {
+            $yimMenuPath = "C:\Users\$env:USERNAME\AppData\Roaming\YimMenu"
+            if (Test-Path -Path $yimMenuPath) {
+                Invoke-Item $yimMenuPath
+            } else {
+                Write-Host "YimMenu folder not found" -ForegroundColor Red
+            }
+        }
+
+        # Function to change the download location
+        function ChangeDownloadLocation {
+            function presetLocations {
+                Write-Host "`n~ " -NoNewline
+                Write-Host "Preset " -NoNewline -ForegroundColor DarkCyan
+                Write-Host "Locations" -NoNewline -ForegroundColor Cyan
+                Write-Host " ~`n"
+                Write-Host "(1) Desktop"
+                Write-Host "(2) Downloads"
+                Write-Host "(3) Documents"
+                Write-Host "(4) Yim-AutoUpdater"
+                Write-Host "(5) Custom location" -ForegroundColor Green
+                Write-Host "(0) Go Back" -ForegroundColor Magenta
+            }
+            
+            function ChangeLocation {
+                $downloadLocationNew = (New-Object -ComObject Shell.Application).BrowseForFolder(0, "Select the new download location", 0, "C:\").Self.Path
+                SetConfigValue -propertyName "DownloadLocation" -newValue $downloadLocationNew
+                Write-Host "Download location changed to $downloadLocationNew" -ForegroundColor Green
+            }
+
+            while ($true) {
+                presetLocations
+                $choice = Read-Host "`nEnter your choice"
+                switch ($choice) {
+                    1 { Clear-Host; SetConfigValue -propertyName "DownloadLocation" -newValue "C:\Users\$env:USERNAME\Desktop"; Write-Host "Download location changed to C:\Users\$env:USERNAME\Desktop" -ForegroundColor Green; break }
+                    2 { Clear-Host; SetConfigValue -propertyName "DownloadLocation" -newValue "C:\Users\$env:USERNAME\Downloads"; Write-Host "Download location changed to C:\Users\$env:USERNAME\Downloads" -ForegroundColor Green; break }
+                    3 { Clear-Host; SetConfigValue -propertyName "DownloadLocation" -newValue "C:\Users\$env:USERNAME\Documents"; Write-Host "Download location changed to C:\Users\$env:USERNAME\Documents" -ForegroundColor Green; break }
+                    4 { Clear-Host; SetConfigValue -propertyName "DownloadLocation" -newValue "C:\Users\$env:USERNAME\Documents\Yim-AutoUpdater"; Write-Host "Download location changed to C:\Users\CoolUserName\Documents\Yim-AutoUpdater" -ForegroundColor Green; break }
+                    5 { Clear-Host; ChangeLocation; break }
+                    0 { Clear-Host; return }
+                    default { Clear-Host; Write-Host "Invalid choice, please try again" -ForegroundColor Red; PlayExclamation }
+                }
+            }
+        }
+
+        # Function to set the amount of time to wait before injecting the DLL
+        function SetInjectionDelay {
+            do {
+                $injectionDelay = Read-Host "Enter the new injection delay in milliseconds (1000 - 20000)"
+                $injectionDelay = $injectionDelay -as [int]
+                Clear-Host
+                Write-Host "Value must be between 1000 and 20000!`n" -ForegroundColor Red
+            } until ($injectionDelay -and $injectionDelay -ge 1000 -and $injectionDelay -le 20000)
+        
+            SetConfigValue -propertyName "InjectionDelay" -newValue $injectionDelay
+            Clear-Host
+            Write-Host "Injection delay set to $injectionDelay ms" -ForegroundColor Green
+        }
+
+        # Function to set the DLL injection platform when auto-launching GTAV
+        function SetPlatform {
+            function ChoosePlatform {
+                Write-Host "`n~ " -NoNewline
+                Write-Host "Choose " -NoNewline -ForegroundColor DarkCyan
+                Write-Host "Platform" -NoNewline -ForegroundColor Cyan
+                Write-Host " ~`n"
+                Write-Host "(1) Steam"
+                Write-Host "(2) Epic Games"
+                Write-Host "(3) Rockstar Games Launcher"
+                Write-Host "(4) None" -ForegroundColor Yellow
+                Write-Host "(0) Go Back" -ForegroundColor Magenta
+            }
+
+            while ($true) {
+                ChoosePlatform
+                $choice = Read-Host "`nEnter your choice"
+                switch ($choice) {
+                    1 { Clear-Host; SetConfigValue -propertyName "Platform" -newValue "1"; Write-Host "Platform set to Steam" -ForegroundColor Green; break }
+                    2 { Clear-Host; SetConfigValue -propertyName "Platform" -newValue "2"; Write-Host "Platform set to Epic Games" -ForegroundColor Green; break }
+                    3 { Clear-Host; SetConfigValue -propertyName "Platform" -newValue "3"; Write-Host "Platform set to Rockstar Games Launcher" -ForegroundColor Green; break }
+                    4 { Clear-Host; SetConfigValue -propertyName "Platform" -newValue "4"; Write-Host "Platform set to None" -ForegroundColor Green; break }
+                    0 { Clear-Host; return }
+                    default { Clear-Host; Write-Host "Invalid choice, please try again" -ForegroundColor Red; PlayExclamation }
+                }
+            }
+        }
+
+        # Function to encrypt a string
+        function EncryptString($inputString) {
+            $secureInput = ConvertTo-SecureString $inputString -AsPlainText -Force
+            $encryptedInput = ConvertFrom-SecureString $secureInput
+            return $encryptedInput
+        }
+
+        # Function to decrypt a string
+        function DecryptString($inputString) {
+            $secureInput = ConvertTo-SecureString $inputString
+            $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureInput)
+            $unsecureInput = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+            return $unsecureInput
+        }
+
+        # Function to set GitHub token
+        function SetGitHubToken {
+            $token = Read-Host "Please enter your GitHub token" -AsSecureString
+            $encryptedToken = EncryptString $token
+            SetConfigValue -propertyName "GitHubToken" -newValue $encryptedToken
+            Clear-Host
+            Write-Host "GitHub token has been set." -ForegroundColor Green
+        }
+
+        function RemoveGitHubToken {
+            SetConfigValue -propertyName "GitHubToken" -newValue $null
+            Write-Host "GitHub token has been removed." -ForegroundColor Green
+        }
+
+        # Function to get GitHub token
+        function GetGitHubToken {
+            $config = Get-Content config.json | ConvertFrom-Json
+            $encryptedToken = $config.GitHubToken
+            $token = DecryptString $encryptedToken
+            return $token
+        }
+        
+        <#
+        
+        Windows Credential Manager functions
+
+        #>
+        # # Function to set GitHub token
+        # function SetGitHubToken {
+        #     $securePassword = Read-Host "Please enter your GitHub token" -AsSecureString
+        #     $credential = New-Object System.Management.Automation.PSCredential("YimGitHubToken", $securePassword)
+        #     $result = New-StoredCredential -Credential $credential -Target "YimGitHubToken" -Persist LocalMachine
+        #     if ($result) {
+        #         SetConfigValue -propertyName "GitHubToken" -newValue $true
+        #         Write-Host "GitHub token has been set." -ForegroundColor Green
+        #     } else {
+        #         Write-Host "Failed to set GitHub token." -ForegroundColor Red
+        #     }
+        # }
+
+        # # Removes the GitHub token
+        # function RemoveGitHubToken {
+        #     $credential = Get-StoredCredential -Target "YimGitHubToken"
+        #     if ($credential) {
+        #         Remove-StoredCredential -Target "YimGitHubToken"
+        #         SetConfigValue -propertyName "GitHubToken" -newValue $false
+        #         Write-Host "GitHub token has been removed." -ForegroundColor Green
+        #     } else {
+        #         Write-Host "GitHub token not found." -ForegroundColor Red
+        #     }
+        # }
+
+        # # Gets the current GitHub token value
+        # function GetGitHubToken {
+        #     $credential = Get-StoredCredential -Target "YimGitHubToken"
+        #     if ($credential) {
+        #         $ptr = [System.Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($credential.Password)
+        #         try {
+        #             $plainTextPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($ptr)
+        #         } finally {
+        #             [System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($ptr)
+        #         }
+        #         return $plainTextPassword
+        #     } else {
+        #         return $null
+        #     }
+        # }
 
         # Function to create a scheduled task
         function CreateScheduledTask {
@@ -583,40 +853,7 @@ function YimAutoUpdater {
             }
         }
 
-        function ChangeDownloadLocation {
-            function presetLocations {
-                Write-Host "`n~ " -NoNewline
-                Write-Host "Preset " -NoNewline -ForegroundColor DarkCyan
-                Write-Host "Locations" -NoNewline -ForegroundColor Cyan
-                Write-Host " ~`n"
-                Write-Host "(1) Desktop"
-                Write-Host "(2) Downloads"
-                Write-Host "(3) Documents"
-                Write-Host "(4) Yim-AutoUpdater"
-                Write-Host "(5) Custom location" -ForegroundColor Green
-                Write-Host "(0) Go Back" -ForegroundColor Magenta
-            }
-            
-            function ChangeLocation {
-                $downloadLocationNew = (New-Object -ComObject Shell.Application).BrowseForFolder(0, "Select the new download location", 0, "C:\").Self.Path
-                SetConfigValue -propertyName "DownloadLocation" -newValue $downloadLocationNew
-                Write-Host "Download location changed to $downloadLocationNew" -ForegroundColor Green
-            }
-
-            while ($true) {
-                presetLocations
-                $choice = Read-Host "`nEnter your choice"
-                switch ($choice) {
-                    1 { Clear-Host; SetConfigValue -propertyName "DownloadLocation" -newValue "C:\Users\$env:USERNAME\Desktop"; Write-Host "Download location changed to C:\Users\$env:USERNAME\Desktop" -ForegroundColor Green; break }
-                    2 { Clear-Host; SetConfigValue -propertyName "DownloadLocation" -newValue "C:\Users\$env:USERNAME\Downloads"; Write-Host "Download location changed to C:\Users\$env:USERNAME\Downloads" -ForegroundColor Green; break }
-                    3 { Clear-Host; SetConfigValue -propertyName "DownloadLocation" -newValue "C:\Users\$env:USERNAME\Documents"; Write-Host "Download location changed to C:\Users\$env:USERNAME\Documents" -ForegroundColor Green; break }
-                    4 { Clear-Host; SetConfigValue -propertyName "DownloadLocation" -newValue "C:\Users\$env:USERNAME\Documents\Yim-AutoUpdater"; Write-Host "Download location changed to C:\Users\CoolUserName\Documents\Yim-AutoUpdater" -ForegroundColor Green; break }
-                    5 { Clear-Host; ChangeLocation; break }
-                    0 { Clear-Host; return }
-                    default { Clear-Host; Write-Host "Invalid choice, please try again" -ForegroundColor Red; PlayExclamation }
-                }
-            }
-
+        function RunAsAdmin {
             # Check if the script is running as admin
             function RunAsAdminCheck {
                 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
@@ -648,19 +885,29 @@ function YimAutoUpdater {
             $choice = Read-Host "`nEnter your choice"
             switch ($choice) {
                 1 { Clear-Host; GetYimMenuInfo; break }
-                2 { Clear-Host; CreateScheduledTask; break }
-                3 { Clear-Host; RemoveScheduledTask; break }
-                4 { Clear-Host; OpenScriptFolder; break }
-                5 { Clear-Host; DisplayConfig; break }
-                6 { Clear-Host; ChangeDownloadLocation; break }
-                7 { Clear-Host; ToggleConfigValue -propertyName "CheckAtStartup" -enabledMessage "Checking for YimMenu updates at startup enabled" -disabledMessage "Checking for YimMenu updates at startup disabled"; break }
-                8 { Clear-Host; ToggleConfigValue -propertyName "ExitAnywhere" -enabledMessage "Exit keybind anywhere enabled" -disabledMessage "Exit keybind anywhere disabled"; break }
-                9 { Clear-Host; ToggleConfigValue -propertyName "RestartAnywhere" -enabledMessage "Restart keybind anywhere enabled" -disabledMessage "Restart keybind anywhere disabled"; break }
-                10 { Clear-Host; ToggleConfigValue -propertyName "SoundEffects" -enabledMessage "Sound effects enabled" -disabledMessage "Sound effects disabled"; break }
-                11 { Clear-Host; ToggleConfigValue -propertyName "TitleArt" -enabledMessage "Big Title Art enabled" -disabledMessage "Big Title Art disabled"; break }
-                12 { Clear-Host; ToggleConfigValue -propertyName "DebugInfo" -enabledMessage "Debug info enabled" -disabledMessage "Debug info disabled"; break }
-                13 { Clear-Host; ResetConfig; break }
-                14 { Clear-Host; RunAsAdmin; break }
+                2 { Clear-Host; OpenYimMenuFolder; break }
+                3 { Clear-Host; ChangeDownloadLocation; break }
+                4 { Clear-Host; ToggleConfigValue -propertyName "CheckAtStartup" -enabledMessage "Checking for YimMenu updates at startup enabled" -disabledMessage "Checking for YimMenu updates at startup disabled"; break }
+                5 { Clear-Host; ToggleConfigValue -propertyName "ExitAnywhere" -enabledMessage "Exit keybind anywhere enabled" -disabledMessage "Exit keybind anywhere disabled"; break }
+                6 { Clear-Host; ToggleConfigValue -propertyName "RestartAnywhere" -enabledMessage "Restart keybind anywhere enabled" -disabledMessage "Restart keybind anywhere disabled"; break }
+                7 { Clear-Host; ToggleConfigValue -propertyName "TitleArt" -enabledMessage "Big Title Art enabled" -disabledMessage "Big Title Art disabled"; break }
+                8 { Clear-Host; ToggleConfigValue -propertyName "SoundEffects" -enabledMessage "Sound effects enabled" -disabledMessage "Sound effects disabled"; break }
+                9 { Clear-Host; ToggleConfigValue -propertyName "DebugInfo" -enabledMessage "Debug info enabled" -disabledMessage "Debug info disabled"; break }
+                10 { Clear-Host; ToggleConfigValue -propertyName "CheckLuaAtStartup" -enabledMessage "Checking for Lua updates at startup enabled" -disabledMessage "Checking for Lua updates at startup disabled"; break }
+                11 { Clear-Host; ToggleConfigValue -propertyName "ScanLuaAtStartup" -enabledMessage "Scanning for Lua scripts at startup enabled" -disabledMessage "Scanning for Lua scripts at startup disabled"; break }
+                12 { Clear-Host; ToggleConfigValue -propertyName "SkipDisabledLuaUpdates" -enabledMessage "Skipping updates for disabled Lua scripts enabled" -disabledMessage "Skipping updates for disabled Lua scripts disabled"; break }
+                13 { Clear-Host; SetInjectionDelay; break }
+                14 { Clear-Host; ToggleConfigValue -propertyName "AutoLaunchGTAV" -enabledMessage "Auto launch GTAV enabled" -disabledMessage "Auto launch GTAV disabled"; break }
+                15 { Clear-Host; SetPlatform; break }
+                16 { Clear-Host; ToggleConfigValue -propertyName "CloseAfterInjection" -enabledMessage "Close after injection enabled" -disabledMessage "Close after injection disabled"; break }
+                17 { Clear-Host; SetGitHubToken; break }
+                18 { Clear-Host; RemoveGitHubToken; break }
+                19 { Clear-Host; CreateScheduledTask; break }
+                20 { Clear-Host; RemoveScheduledTask; break }
+                21 { Clear-Host; OpenScriptFolder; break }
+                22 { Clear-Host; DisplayConfig; break }
+                23 { Clear-Host; ResetConfig; break }
+                24 { Clear-Host; RunAsAdmin; break }
                 r { Clear-Host; ReloadScript; break }
                 0 { Clear-Host; return }
                 default {
@@ -670,6 +917,85 @@ function YimAutoUpdater {
                         exit
                     } else {
                         Clear-Host; Write-Host "Invalid choice, please try again" -ForegroundColor Red; PlayExclamation
+                    }
+                }
+            }
+        }
+    }
+
+    function YimMenuLua {
+        function GetLuaScripts {
+            $jsonList = "https://harmlessdev.xyz/YimMenu-Lua.json"
+            $luaScripts = Invoke-RestMethod -Uri $jsonList
+            return $luaScripts
+        }
+
+        function DisplayLuaScripts {
+            $luaScripts = GetLuaScripts
+            Write-Host "`n~ " -NoNewline
+            Write-Host "YimMenu " -NoNewline -ForegroundColor Blue
+            Write-Host "Lua " -NoNewline -ForegroundColor DarkCyan
+            Write-Host "Scripts" -NoNewline -ForegroundColor Blue
+            Write-Host " ~`n"
+            Write-Host "Please select a script to download:" -ForegroundColor Cyan
+            $i = 1
+            foreach ($script in $luaScripts) {
+                Write-Host "`n($i) $($script.name) " -ForegroundColor Green -NoNewline
+                Write-Host "by " -NoNewline
+                Write-Host "$($script.creator)" -ForegroundColor Yellow
+                Write-Host "Description: " -ForegroundColor DarkCyan -NoNewline
+                Write-Host "$($script.description)"
+                Write-Host "`nRepo URL: $($script.repo_url)"
+                if ($script.libfiles) {
+                    Write-Host "Libraries:"
+                    foreach ($libfile in $script.libfiles) {
+                        Write-Host "  - Name: $($libfile.name) by $($libfile.creator)"
+                        Write-Host "    Description: $($libfile.description)"
+                        Write-Host "    Lib URL: $($libfile.lib_url)"
+                    }
+                }
+                $i++
+            }
+            Write-Host "`n(0) Go Back" -ForegroundColor Magenta
+        }
+        DisplayLuaScripts
+
+        function GetSHA1 {
+            #TODO: Implement SHA1 hash function
+        }
+
+        while ($true) {
+            $luaScripts = GetLuaScripts
+            $choice = Read-Host "`nEnter your choice"
+            switch ($choice) {
+                0 { Clear-Host; return }
+                default {
+                    if ($choice -ge 1 -and $choice -le $luaScripts.Count) {
+                        try {
+                            $script = $luaScripts[$choice - 1]
+                            $scriptName = $script.name
+                            $scriptURL = $script.script_url
+                            $scriptSha = GetSHA1
+                            Write-Host "`nDownloading $scriptName..." -ForegroundColor Yellow
+                            Invoke-WebRequest -Uri $scriptURL -OutFile "$yimMenuPath\scripts\$scriptName.lua"
+                            # If script has libraries, download them too
+                            if ($script.libfiles) {
+                                foreach ($libfile in $script.libfiles) {
+                                    $libName = $libfile.name
+                                    $libURL = $libfile.lib_url
+                                    Write-Host "`nDownloading $libName..." -ForegroundColor Yellow
+                                    Invoke-WebRequest -Uri $libURL -OutFile "$yimMenuPath\scripts\$libName.lua"
+                                }
+                            }
+                            Write-Host "Download completed." -ForegroundColor Green
+                            Write-Host "SHA1: $scriptSha" -ForegroundColor Cyan
+                        } catch {
+                            PlayExclamation
+                            Write-Host "Failed to download the script" -ForegroundColor Red
+                        }
+                    } else {
+                        Clear-Host
+                        Write-Host "Invalid choice, please try again" -ForegroundColor Red
                     }
                 }
             }
@@ -750,6 +1076,131 @@ function YimAutoUpdater {
         }
     }
 
+    function DLLinject {
+        function MainInjection {
+            # Load the necessary functions
+Add-Type -TypeDefinition @"
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
+public class Injector {
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr OpenProcess(int dwDesiredAccess, bool bInheritHandle, int dwProcessId);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+    public static extern IntPtr GetModuleHandle(string lpModuleName);
+
+    [DllImport("kernel32", CharSet = CharSet.Ansi, ExactSpelling = true, SetLastError = true)]
+    public static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+
+    [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+    public static extern IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, uint flAllocationType, uint flProtect);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, uint nSize, out int lpNumberOfBytesWritten);
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
+}
+"@ -Language CSharp
+
+            # Wait for GTA5.exe process to start
+            while (-not (Get-Process -Name "GTA5" -ErrorAction SilentlyContinue)) {
+                for ($i = 1; $i -le 3; $i++) {
+                    Write-Host ("Waiting for GTA5.exe to start" + "." * $i)
+                    Start-Sleep -Seconds 1
+                    Clear-Host
+                }
+            }
+
+            $injectionDelay = [int](GetConfigValue("InjectionDelay"))
+            for ($i = $injectionDelay; $i -ge 0; $i -= 1000) {
+                Clear-Host
+                Write-Host "Waiting $i ms before injecting the DLL..." -ForegroundColor Yellow
+                Start-Sleep -Milliseconds 1000
+            }
+
+            # Get GTA5.exe process ID
+            $procId = (Get-Process -Name "GTA5").Id
+            # Get handle
+            $procHandle = [Injector]::OpenProcess(0x1F0FFF, $false, $procId)
+            # Get handle to kernel32
+            $loadLibAddr = [Injector]::GetProcAddress([Injector]::GetModuleHandle("kernel32.dll"), "LoadLibraryA")
+            # Allocate memory
+            $allocMemAddress = [Injector]::VirtualAllocEx($procHandle, [IntPtr]::Zero, 0x1000, 0x3000, 0x40)
+            $yimDLLPath = GetConfigValue("DownloadLocation")
+            # Write the DLL path to the allocated memory
+            $writeMemoryResult = [Injector]::WriteProcessMemory($procHandle, $allocMemAddress, [System.Text.Encoding]::ASCII.GetBytes("$yimDLLPath\yimmenu.dll"), 0x1000, [ref]0)
+            # Create a remote thread
+            $createThreadResult = [Injector]::CreateRemoteThread($procHandle, [IntPtr]::Zero, 0, $loadLibAddr, $allocMemAddress, 0, [IntPtr]::Zero)
+
+            # Check if the injection was successful
+            if ($createThreadResult -eq [IntPtr]::Zero) {
+                PlayExclamation
+                Write-Host "Injection failed" -ForegroundColor Red
+            } else {
+                Write-Host "Injection successful" -ForegroundColor Green
+                if (GetConfigValue("CloseAfterInjection") -eq $true) {
+                    Write-Host "Closing the script in 10 seconds..." -ForegroundColor Yellow
+                    Write-Host "Press any button to cancel"
+                    for ($i = 0; $i -lt 10; $i++) {
+                        if ($Host.UI.RawUI.KeyAvailable) {
+                            $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+                            Clear-Host
+                            return
+                        }
+                        Start-Sleep -Seconds 1
+                    }
+                    exit
+                }
+            }
+            # Close the handle to the process
+            [System.Runtime.InteropServices.Marshal]::FreeHGlobal($procHandle)
+        }
+
+        function PlatformChecks {
+            # Checks before injecting the DLL
+            $autoLaunch = GetConfigValue("AutoLaunchGTAV")
+            $platform = GetConfigValue("Platform")
+
+            if ($autoLaunch -eq $true -and $platform -notlike "4") {
+                if ($platform -eq "1") { # Steam
+                    Write-Host "Starting Steam GTA5..."
+                    $uri = "steam://run/271590"
+                    Start-Process -FilePath $uri
+                    MainInjection
+                } elseif ($platform -eq "2") { # Epic Games
+                    Write-Host "Starting Epic Games GTA5..."
+                    $uri = "com.epicgames.launcher://apps/9d2d0eb64d5c44529cece33fe2a46482?action=launch&silent=true"
+                    Start-Process -FilePath $uri
+                    MainInjection
+                } elseif ($platform -eq "3") { # Rockstar Games Launcher
+                    Write-Host "Starting Rockstar Games Launcher GTA5..."
+                    $keys = @("HKLM:\SOFTWARE\WOW6432Node\Rockstar Games\GTAV", "HKLM:\SOFTWARE\WOW6432Node\Rockstar Games\Grand Theft Auto V", "HKLM:\SOFTWARE\Rockstar Games\Grand Theft Auto V", "HKLM:\SOFTWARE\Rockstar Games\GTAV")
+                    $selfGTAV_dirPath = $null
+                    foreach ($key in $keys) {
+                        $selfGTAV_dirPath = Get-ItemPropertyValue -Path $key -Name "InstallFolder" -ErrorAction SilentlyContinue
+                        if ($selfGTAV_dirPath) { break }
+                    }
+                    if (-not $selfGTAV_dirPath) {
+                        $keysSteam = @("HKLM:\SOFTWARE\WOW6432Node\Rockstar Games\GTAV", "HKLM:\SOFTWARE\Rockstar Games\GTAV", "HKLM:\SOFTWARE\WOW6432Node\Rockstar Games\Grand Theft Auto V", "HKLM:\SOFTWARE\Rockstar Games\Grand Theft Auto V")
+                        foreach ($key in $keysSteam) {
+                            $selfGTAV_dirPath = Get-ItemPropertyValue -Path $key -Name "InstallFolderSteam" -ErrorAction SilentlyContinue
+                            if ($selfGTAV_dirPath) { break }
+                        }
+                    }
+                    Start-Process -FilePath "$selfGTAV_dirPath\PlayGTAV.exe"
+                    MainInjection
+                }
+            } elseif ($autoLaunch -eq $true -and $platform -like "4") { # Auto launch is enabled but no platform is selected
+                PlayExclamation
+                Write-Host "Auto launch is enabled but no platform is selected. Please select a platform or disable auto launch!" -ForegroundColor Red
+            }
+        }
+        PlatformChecks
+    }
+
     while ($true) {
         Options
         $choice = Read-Host "`nEnter your choice"
@@ -757,6 +1208,8 @@ function YimAutoUpdater {
             1 { Clear-Host; CheckForYimUpdates; break }
             2 { Clear-Host; CheckAndDownloadYimUpdates; break }
             3 { Clear-Host; ScriptSettings; break}
+            4 { Clear-Host; YimMenuLua; break }
+            5 { Clear-Host; DLLinject; break }
             h { Clear-Host; HelpMenu; break }
             0 { exit }
             default {
